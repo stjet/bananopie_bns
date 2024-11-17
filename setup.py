@@ -7,7 +7,7 @@ setup(
     author_email="prussia@prussia.dev",
     packages=["bananopie_bns"],
     install_requires=["bananopie"],
-    version="0.0.1",
+    version="0.0.2",
     license="MIT",
     description="A python library to simplify sending and receiving Banano. Also a RPC wrapper.",
     long_description=open("README.md").read(),
