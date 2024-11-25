@@ -68,17 +68,25 @@ class TldAccount(Account):
       head_hash = history[len(history) - 1].hash;
 
 class DomainAccount(Account):
-  def __init__(self, rpc: RPC, address: str, domain = None):
+  def __init__(self, rpc: RPC, address: str, domain = None, max_rpc_calls = None):
     super().__init__(rpc, address)
     self.domain = domain
+    self.rpc_calls = 0
+    self.max_rpc_calls = max_rpc_calls
   def crawl(self, crawl_size: int = 500):
     try:
       open_hash, frontier_hash = self.get_open_and_frontier()
+      self.rpc_calls += 1
     except Exception:
       return self.domain
+    if self.rpc_calls == self.max_rpc_calls:
+      raise Exception("Max RPC calls reached")
     head_hash = open_hash
     while True:
       history = self.get_history_from_open(head_hash, crawl_size)["history"]
+      self.rpc_calls += 1
+      if self.rpc_calls == self.max_rpc_calls:
+        raise Exception("Max RPC calls reached")
       for block in history:
         if "amount" not in block:
           amount = "0"
@@ -97,7 +105,7 @@ class DomainAccount(Account):
         elif len(amount) == 27:
           if block["subtype"] == "send" and amount.startswith(TRANS_START) and (amount[len(TRANS_START)] == "1" or amount == TRANS_MAX):
             decoded_name = decode_domain_name(get_public_key_from_address(block["representative"]))
-            if decoded_name == self.domain:
+            if decoded_name == self.domain["name"]:
               self.domain["resolved_address"] = None
               self.domain["metadata_hash"] = None
               self.domain["history"].append({
@@ -131,9 +139,10 @@ class DomainAccount(Account):
       head_hash = history[len(history) - 1].hash;
 
 class Resolver:
-  def __init__(self, rpc: RPC, tld_mapping):
+  def __init__(self, rpc: RPC, tld_mapping, max_rpc_calls_after_tld = None):
     self.rpc = rpc
     self.tld_mapping = tld_mapping
+    self.max_rpc_calls_after_tld = max_rpc_calls_after_tld
   def resolve(self, domain_name: str, tld: str, crawl_size: int = 500):
     domain_name = domain_name.lower()
     if not self.tld_mapping[tld]:
@@ -142,12 +151,15 @@ class Resolver:
     domain = tld_account.get_specific(domain_name, crawl_size)
     if not domain:
       return domain
+    max_rpc_calls_after_tld = self.max_rpc_calls_after_tld
     while True:
       current_domain_account = domain["history"][len(domain["history"]) - 1]["to"]
-      domain_account = DomainAccount(self.rpc, current_domain_account, domain)
+      domain_account = DomainAccount(self.rpc, current_domain_account, domain, max_rpc_calls_after_tld)
       old_l = len(domain["history"])
       domain = domain_account.crawl(crawl_size)
-      if domain["history"][len(domain["history"]) - 1]["type"] != "transfer" or domain["burned"] or old_l == len(domain["history"]):
+      if max_rpc_calls_after_tld:
+        max_rpc_calls_after_tld -= domain_account.rpc_calls
+      if domain["history"][len(domain["history"]) - 1]["type"] != "transfer" or domain.get("burned", False) or old_l == len(domain["history"]):
         break
     return domain
   def resolve_backwards_ish(self, domain_account_address: str, tld: str, crawl_size: int = 500):

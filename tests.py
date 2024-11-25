@@ -22,3 +22,16 @@ print(resolver.resolve("skip", "jtv")["resolved_address"])
 
 print(resolver.resolve_backwards_ish("ban_1n4f89e93kkg5dchm1thgqcd6hchtidunbru3pwbq11iwn11qwbgyka8ruop", "mictest")["resolved_address"])
 
+print(len(resolver.resolve("long", "mictest")["history"]))
+
+resolver2 = Resolver(rpc, test_tld_mapping, 3)
+
+try:
+  resolver2.resolve("long", "mictest")
+except Exception:
+  print("yup")
+
+resolver3 = Resolver(rpc, test_tld_mapping, 12)
+
+print(len(resolver3.resolve("long", "mictest")["history"]))
+
